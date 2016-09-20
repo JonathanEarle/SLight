@@ -1,0 +1,8 @@
+pass to pi 
+	leds to light ahead
+	vehicle entering new pi
+	expectedSensorUpdate
+	lastSensorTime
+
+pass to trailing pi
+	leds to light or fade behind

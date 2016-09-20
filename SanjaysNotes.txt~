@@ -1,0 +1,21 @@
+Notes for Sanjay
+
+There are unused functions in the document, such as addVehicle. Remove them.
+
+The concept of maxVehicles should not exist, Arrays are dynamic, look at python list documentation.
+
+You are not utilizing python fully, you hard coded in the number of sensors and LEDs when you couldve taken the length of the array which held them.
+
+Comment all of the functions even the simple ones a little
+
+The two global variables are not necessary can declare them in main and then pass them into the function.
+
+The range you hard coded in as 3 should be calculated based on the time taken to pass between the sensors, this calculation is a function.
+
+There are various runtime errors which occur, fix them.
+
+Turn the logic used to have the lights come on into a function which can be called and completed in a few lines in main, just as the light on/off function was easy to use and just did its job.
+
+Edit is so it works for multiple sensors, note with more than two sensors one trigger can be a start and another an end, work around this. A system that is easy to use with any number of sensors is the goal.
+
+These points are to ensure we have a high score with our code and if anything goes wrong the system is robust enough to handle it.
