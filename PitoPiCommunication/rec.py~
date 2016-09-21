@@ -1,15 +1,13 @@
 import socket
+import pickle
 
-host='192.168.1.6'
+host='192.168.1.2' #IP of host
 port=5560
 
-s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-s.connect((host,port))
 
-#comm=input("enter cmd: ")
-#s.send(str("u"))
-
-reply=s.recv(1024)
-print(reply)
-
-#s.close()
+while True:
+	s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+	s.connect((host,port))
+	data=pickle.loads(s.recv(1024))
+	print(data)
+	s.close()
