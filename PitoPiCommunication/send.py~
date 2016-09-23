@@ -4,7 +4,8 @@ import threading
 
 host=''
 serverIP='192.168.1.2' #IP of server to connect to, ie Next Pi
-port=5560 #Port number
+rport=5561
+sport=5560 #Port number
 
 #Data to be sent
 one=1
@@ -16,7 +17,7 @@ def setupServer():
         s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         print("Socket created")
         try:
-                s.bind((host,port))
+                s.bind((host,sport))
         except socket.error as msg:
                 print(msg)
         print("Socket bind complete")
@@ -35,27 +36,34 @@ def dataTransfer(conn):
         #print("Data has been sent")
 
 #Code which makes program act as a client too
-#def Client():
-#	while True:
-#		s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-#		s.connect((serverIP,port))
-#		data=pickle.loads(s.recv(1024))
-#		print(data)
-#		s.close()
+def Client():
+	while True:
+		s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+		s.connect((serverIP,rport))
+		data=pickle.loads(s.recv(1024))
+		print(data)
+		s.close()
+
+def Server():
+	#Continuously loop through waiting for client to connect to server, sending the data and then waiting for data to change
+	while True:
+		try:	
+		        conn=setupConnection()
+		        dataTransfer(conn)
+		
+			one=input("Enter one: ")
+			two=input("Enter two: ")
+			data={"one":one,"two":two}		
+		except:
+		        print('Error')
+		        break
 
 s=setupServer() #Set up the server
-#threading.Thread(target=Client).start()	#Start the client thread
+threading.Thread(target=Server).start() #Start the server thread
+strtClient=input("Start the client? ")
+if strtClient=='y':
+	threading.Thread(target=Client).start()	#Start the client thread
 
-#Continuously loop through waiting for client to connect to server, sending the data and then waiting for data to change
-while True:
-        try:	
-                conn=setupConnection()
-                dataTransfer(conn)
-		
-		one=input("Enter one: ")
-		two=input("Enter two: ")
-		data={"one":one,"two":two}		
-        except:
-                print('Error')
-                break
+
+
 

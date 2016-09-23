@@ -4,8 +4,8 @@ import threading
 
 host=''
 serverIP='192.168.1.2' #IP of server to connect to, ie Next Pi
-rport=5561
-sport=5560 #Port number
+sport=5561
+rport=5560 #Port number
 
 #Data to be sent
 one=1
@@ -63,7 +63,6 @@ threading.Thread(target=Server).start() #Start the server thread
 strtClient=input("Start the client? ")
 if strtClient==1:
 	threading.Thread(target=Client).start()	#Start the client thread
-
 
 
 
