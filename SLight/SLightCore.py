@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 #add pi to pi communication to lines: ??(pass lights ahead to light) 167(pass vehicle to leading pi), 222(pass expectedSensorTime), 271(Retrieve last sensorTime from the previous pi)
 
 import os
@@ -9,14 +11,14 @@ GPIO.setmode(GPIO.BCM)
 
 vehicles = []
 
-LEDS = [16,12,17,27,5,20]#GPIO of LED
+#LEDS = [16,12,17,27,5,20]#GPIO of LED
 #Sensors = [23,18,24]#GPIO of sensor
-Sensors = [23,18]
+#Sensors = [23,18]
 
 
 #testing LEDs and sensorsDistance
-#LEDS = [15,18,23,24,8,7,12,16,21,26,19,13,5,11,9,10,27,17,4,3]#20 LEDS
-#Sensors = [14,25,20,6,22]#5snesors
+LEDS = [15,18,23,24,8,7,12,16,21,26,19,13,5,11,9,10,27,17,4,3]#20 LEDS
+Sensors = [14,25,20,6,22]#5snesors
 
 LEDsMult=int(len(LEDS)/len(Sensors)) #How many LEDs associate with one sensor
 sensorsNum=len(Sensors)
@@ -30,7 +32,10 @@ LEDsState=[0]*LEDsNum#single element can be either 1 meaning light on or 0 meani
 
 LEDsDistance=[] #Distance from one sensor to another sensor
 sensorsDistance=[] #Distance from one LED to another LED
+lastPiSensorTime=-1
 
+start="serv1"
+end="serv2"
 
 for i in range(0,len(Sensors)):
         GPIO.setup(Sensors[i],GPIO.IN)
@@ -76,7 +81,7 @@ def checker(state):
 
 def scan(S): #Function used to detect if input in being recieved on the motion sensor
     curr= GPIO.input(S)
-    if curr ==0:
+    if curr !=0:
         return S    
     else:     
         return 0
@@ -102,15 +107,18 @@ def testSensor():#function continuously checks for an object passing any sensor,
         while 1:
                 #Keeps scanning for motion
                 for i in range(0,sensorsNum):
-                    	state = scan(Sensors[i])
-                    	#print(state)
-                	if state and sensorState[i]==0:
-                    		print(i)
-                    		sensorState[i]=1
-                	elif state and sensorState[i]==1:
-                    		sensorState[i]=1
-                	elif state==0 and sensorState[i]==1:
-                    		sensorState[i]=0
+                        state = scan(Sensors[i])
+                        
+#                        if state:
+#                            print(i)
+                        
+                        if state and sensorState[i]==0:
+                            print(i)
+                            sensorState[i]=1
+                        elif state and sensorState[i]==1:
+                            sensorState[i]=1
+                        elif state==0 and sensorState[i]==1:
+                            sensorState[i]=0
                 
         
 
@@ -124,6 +132,17 @@ def calcStepThroughTime(speed,currentPos):
 def calcVisionRange(timeDifference):
         return 1
 
+def updateLEDsStateNew(pos,update):
+    if update==1:
+        LEDsStateNew[pos]=1
+    else:
+        if LEDsStateNew[pos]=="-":
+            LEDsStateNew[pos]=0
+        elif LEDsStateNew[pos]==1:
+            LEDsStateNew[pos]=1
+        else:
+            LEDsStateNew[pos]=0
+        
 def stepThrough():
         currentTime=time.clock()
         for i in range(0,len(vehicles)):
@@ -131,11 +150,14 @@ def stepThrough():
                     if vehicles[i]["currentPos"]<LEDsNum:
                         stepThroughTime=calcStepThroughTime(vehicles[i]["speed"],vehicles[i]["currentPos"])
                     
-                    
                         if stepThroughTime+vehicles[i]["timePlaced"] <currentTime:
                                 #change timeplaced and currentPosition
                                 vehicles[i]["timePlaced"]=vehicles[i]["timePlaced"]+stepThroughTime
                                 vehicles[i]["currentPos"]+=1
+                                
+                                #updateExpectedSensorPass(i+1, len(vehicles)-1)
+                                #if vehicles[i]["currentPos"] % LEDsMult==0:
+                                    #updateExpectedSensorPass(int(vehicles[i]["currentPos"] / LEDsMult)+1, i)
 
                                 #update LEDsStateNew
                                 pos=vehicles[i]["currentPos"]
@@ -143,38 +165,77 @@ def stepThrough():
                                 trailingPos=pos-vehicles[i]["visionRange"]
 
                                 if trailingPos>=LEDsNum:
+                                        #passToLeadingPi-newVehicle
+                                        passToLeadingPi.newVehicle(vehicles[x])
+                                        
                                         #removeVehicle
                                         for x in range(i,len(vehicles)):
                                                 vehicles[x]=vehicles[x+1]
                                 
                                 if(leadingPos<LEDsNum):#trailing LED to leading LED must be changed to high
+                                        tempTrailing=[]#init to an array then proceed to append
+                                        tempLeading=[]#init to an array then proceed to append
                                         for i in range(trailingPos,leadingPos+1):
-                                                LEDsStateNew[i]=1
-
-                                trailingPos=trailingPos-1#two less characters
-                                if(trailingPos>=0 and trailingPos<LEDsNum):#one LED before trailing LED can be changed to low if possible,to simulate the removal of LEDs as the vehicle passes
-                                        if LEDsStateNew[trailingPos]=="-":
-                                                LEDsStateNew[trailingPos]=0
-                                        elif LEDsStateNew[trailingPos]==1:
-                                                LEDsStateNew[trailingPos]=1
-                                        else:
-                                                LEDsStateNew[trailingPos]=0
+                                                if i<0: #PassToTrailingPi-light
+                                                    tempTrailing.append(i)
+                                                elif i>LEDsNum:#PassToLeadingPi-light
+                                                    tempLeading.append(i)
+                                                else:
+                                                    updateLEDsStateNew(i,1)
                                                 
-                        else:
-                                #passToLeadingPi[0]=vehicles[i]
-                                vehicles.pop(i)
-                                #a=1#included because the else statment must have a body
-                                #Pass vehicle to next pi
+                                        PassToTrailingPi.light(tempTrailing)
+                                        PassToLeadingPi.light(tempLeading)
+                                trailingPos=trailingPos-1#two less characters
+                                
+                                #one LED before trailing LED can be changed to low if possible,to simulate the removal of LEDs as the vehicle passes
+                                if(trailingPos>=0):
+                                        updateLEDsStateNew(trailingPos,0)
+                                else:
+                                        #PassToTrailingPi-fade
+                                        tempTrailing=[]
+                                        tempTrailing.append(trailingPos)
+                                        PassToTrailingPi.fade(tempTrailing)
+                                                
+                    else:
+                            PassToLeadingPi.newVehicle(vehicles.pop(i))
+                            #Pass vehicle to next pi
 
 def addVehicleStartingLEDs(sensorPassed):
+        global PassToLeadingPi
+        global PassToTrailingPi
+        tempLeading=[]
+        tempTrailing=[]
         for i in range((sensorPassed-1)*LEDsMult+1,(sensorPassed+1)*LEDsMult):
                 if i>=0 and i<LEDsNum:
                         LEDsState[i]=1
+                elif i<0:
+                        #PassToTrailingPi-Light
+                        tempTrailing.append(i)
+                elif i>=LEDsNum:
+                        #PassToLeadingPi-Light
+                        tempLeading.append(i)
+                        
+        PassToLeadingPi.light(tempLeading)
+        PassToTrailingPi.light(tempTrailing)
+        PassToTrailingPi.printThis()
+                   
                         
 def removeVehicleStartingLEDs(sensorPassedBefore):
+        tempLeading=[]
+        tempTrailing=[]
         for i in range((sensorPassedBefore-1)*LEDsMult+1,(sensorPassedBefore+1)*LEDsMult):
                 if i>=0 and i<LEDsNum:
-                        LEDsStateNew[i]=0
+                        updateLEDsStateNew(i,0)
+                elif i<0:
+                        #PassToTrailingPi-Light
+                        tempTrailing.append(i)
+                elif i>=LEDsNum:
+                        #PassToLeadingPi-Light
+                        tempLeading.append(i)
+                        
+        PassToLeadingPi.fade(tempLeading)
+        PassToTrailingPi.fade(tempTrailing)
+         
 
 def updateStateFromNew():
         for i in range(0,LEDsNum):
@@ -218,40 +279,211 @@ def updateExpectedSensorPass(sensor, vehicle):
         expectedSensorPass[sensor]=vehicle
         expectedSensorPass[sensor-1]=-1
     else:
-            passToLeadingPi[1]=vehicle
-            expectedSensorPass[sensor]=-1
-        #a=1 #include because else must have a body
-        #For the next pi, call this same function pass the same vehicle but pass  the sensor 0 instead
+        #PassToLeadingPi-expectedSensorUpdate
+        PassToLeadingPi.expectedSensorUpdate(vehicle)
+        expectedSensorPass[sensor]=-1
 
-def readFromFile():
-        if os.path.isfile('./receiveFromTrailingPi.p'):
-                return pickle.load(open("receiveFromTrailingPi.p","rb"))
+
+#def updateStateLEDFromRetrieved():
+       
+    
+
+class passToLeadingPi:
+    
+    def __init__(self):
+        self.data={"light":None,"fade":None,"newVehicle":None,"expectedSensorUpdate":None,"lastSensorTime":None}
+        self.change=0
+    
+    def light(self,para):
+        self.data["light"]=para
+        self.change=1
+        
+    def fade(self,para):
+        self.data["fade"]=para
+        self.change=1
+        
+    def newVehicle(self,para):
+        self.data["newVehicle"]=para
+        self.change=1
+        
+    def expectedSensorUpdate(self,para):
+        self.data["expectedSensorUpdate"]=para
+        self.change=1
+        
+    def lastSensorTime(self,para):
+        self.data["lastSensorTime"]=para
+        self.change=1
+        
+    def setData(self,data):
+        self.data=data
+        self.change=1
+        
+    def getData(self):
+        return self.data
+        
+    def printThis(self):
+        print(self.data)
+    
+    def send(self):
+        if self.change==1:
+            #send data to leading pi
+            fromEndToStart()
+            #reinitialize data
+            self.data={"light":None,"fade":None,"newVehicle":None,"expectedSensorUpdate":None,"lastSensorTime":None}
+            self.change=0
+            
+    
+class receiveFromTrailingPi:
+    
+    def __init__(self):
+        self.data={"light":None,"fade":None,"newVehicle":None,"expectedSensorUpdate":None,"lastSensorTime":None}
+        self.change=0
+    
+    def light(self,para):
+        self.data["light"]=para
+        self.change=1
+        
+    def fade(self,para):
+        if self.data["fade"]==None:
+            self.data["fade"]=para
         else:
-                receiveFromTrailingPiTemp=[-1]
-                pickle.dump(receiveFromTrailingPiTemp,open("receiveFromTrailingPi.p","wb"))
-                return pickle.load(open("receiveFromTrailingPi.p","rb"))
-
+            for i in range(0,len(para)):
+                try:
+                    index=self.data["fade"].index(para[i])
+                    self.data["fade"].insert(index,para[i])
+                except:
+                    self.data["fade"].append(para[i])
+                    
+        self.change=1
         
-
-def writeToFile(passToLeadingPi):
-        pickle.dump(passToLeadingPi,open("passToLeadingPi.p","wb"))
-
-def updateStateLEDFromRetrieved():
+    def newVehicle(self,para):
+        self.data["newVehicle"]=para
+        self.change=1
         
-              
+    def expectedSensorUpdate(self,para):
+        self.data["expectedSensorUpdate"]=para
+        self.change=1
+        
+    def lastSensorTime(self,para):
+        self.data["lastSensorTime"]=para
+        self.change=1
+        
+    def setData(self,data):
+        self.data=data
+        self.change=1
+        
+    def getData(self):
+        return self.data
+        
+    def printThis(self):
+        print(self.data)
+
+    def isChanged(self):
+        if self.change==1:
+            return 1
+        else:
+            return 0
+            
+class passToTrailingPi:
+    def __init__(self):
+        self.data={"light":None,"fade":None}
+        self.change=0
+        
+    def light(self,para):
+        self.data["light"]=para
+        self.change=1
+        
+    def fade(self,para):
+        self.data["fade"]=para
+        self.change=1
+    
+    def setData(self,data):
+        self.data=data
+        self.change=1
+        
+    def getData(self):
+        return self.data
+        
+    def printThis(self):
+        print(self.data)
+    
+    def send(self):
+        if self.change==1:
+            #send data to trailing pi
+            fromStartToEnd()
+            #reinitialize data
+            self.data={"light":None,"fade":None}
+            self.change=0
+    
+class receiveFromLeadingPi:
+    def __init__(self):
+        self.data={"light":None,"fade":None}
+        self.change=0
+        
+    def light(self,para):
+        self.data["light"]=para
+        self.change=1
+        
+    def fade(self,para):
+        if self.data["fade"]==None:
+            self.data["fade"]=para
+        else:
+            for i in range(0,len(para)):
+                    self.data["fade"].append(para[i])
+                    
+        self.change=1
+        
+    def setData(self,data):
+        self.data=data
+        self.change=1
+        
+    def getData(self):
+        return self.data
+        
+    def printThis(self):
+        print(self.data)
+        
+    def isChanged(self):
+        if self.change==1:
+            return 1
+        else:
+            return 0
+    
+
+PassToLeadingPi=passToLeadingPi()
+ReceiveFromTrailingPi=receiveFromTrailingPi()
+PassToTrailingPi=passToTrailingPi()
+ReceiveFromLeadingPi=receiveFromLeadingPi()
+     
+
+def fromStartToEnd():
+    ReceiveFromLeadingPi.setData(PassToTrailingPi.getData())
+
+def fromEndToStart():
+    ReceiveFromTrailingPi.setData(PassToLeadingPi.getData())
+     
+def updateExpectedSensorFromPi():
+    if ReceiveFromTrailingPi.getData()["expectedSensorUpdate"]!= None:
+        expectedSensorPass[0]=ReceiveFromTrailingPi.getData()["expectedSensorUpdate"]
+    
+
+
+    
 def main():
     try:
             resetLights()
             run =True
             firstVehicleSpeed=0
-            passToLeadingPi=[-1]*3
-            receiveFromTrailingPi=[]
-            
-
             
             setAllSensorsDistance(5)
             setAllLEDsDistance()
-
+                
+            global ReceiveFromTrailingPi
+            global ReceiveFromLeadingPi
+            global PassToLeadingPi
+            global PassToTrailingPi
+            global lastPiSensorTime
+            
             #used for setting up which light and sensor goes to which physical location
             #testLight()
             #testSensor()
@@ -262,14 +494,55 @@ def main():
             
             while run:
                     initLEDsStateNew() #ensures the stateNew is empty
+
+                    #receive from leading pi
+                    if ReceiveFromLeadingPi.isChanged()==1:
+                        #ReceiveFromLeadingPi.printThis()
                     
-                    receiveFromTrailingPi=readFromFile()
-                    writeToFile(passToLeadingPi)
+                        #receive all pi data
+                        #receive light
+                        lights=ReceiveFromLeadingPi.getData()["light"]
+                        if lights!=None:
+                            for i in range(0,len(lights)):
+                                updateLEDsStateNew(lights[i],1)
+                        #receive fade
+                        fades=ReceiveFromLeadingPi.getData()["fade"]
+                        if fades!=None:
+                            for i in range(0,len(fades)):
+                                updateLEDsStateNew(fades[i],0)
+                            
+                        #after receiving all data reset data contained for next iteration
+                        ReceiveFromLeadingPi=receiveFromLeadingPi() #no need to check if the value is None here since should this data be needed, it will be guaranteed to exist
+                        
+                    #receive from trailing pi
+                    if ReceiveFromTrailingPi.isChanged()==1:
+                        ReceiveFromTrailingPi.printThis()
+                        print("*")
                     
-                    print(receiveFromTrailingPi)
-                    print(passToLeadingPi)
-                    time.sleep(5)
-                    
+                        #receive all pi data
+                        updateExpectedSensorFromPi()#receive expectedSensorTime
+                        #receive light
+                        lights=ReceiveFromTrailingPi.getData()["light"]
+                        if lights!=None:
+                            for i in range(0,len(lights)):
+                                updateLEDsStateNew(lights[i],1)
+                        #receive fade
+                        fades=ReceiveFromTrailingPi.getData()["fade"]
+                        if fades!=None:
+                            for i in range(0,len(fades)):
+                                updateLEDsStateNew(fades[i],0)
+                        #receive newVehicle
+                        if ReceiveFromTrailingPi.getData()["newVehicle"]!=None:
+                            vehicles.append(ReceiveFromTrailingPi.getData()["newVehicle"])
+                            addVehicleStartingLEDs(0)#will always be pos 0 since it now exited the previous pis track
+                            updateExpectedSensorPass(1, len(vehicles)-1)
+                        #receive lastSensorTime
+                        if ReceiveFromTrailingPi.getData()["lastSensorTime"]!=None:
+                            lastPiSensorTime=ReceiveFromTrailingPi.getData()["lastSensorTime"]
+
+                        #after receiving all data reset data contained for next iteration
+                        ReceiveFromTrailingPi=receiveFromTrailingPi() #no need to check if the value is None here since should this data be needed, it will be guaranteed to exist
+                        
                     #Keeps scanning for motion
                     for i in range(0,sensorsNum):
                             state = scan(Sensors[i])
@@ -278,7 +551,9 @@ def main():
                                     
                                     sensorTime[i]=time.clock()#the time which the sensor was triggered is stored
 
-                                    print(state)
+                                    #PassToLeadingPi-LastSensorTime
+                                    if state==sensorsNum-1:
+                                        PassToLeadingPi.lastSensorTime(sensorTime[i])
 
                                     sensorState[i]=1
                                     
@@ -295,17 +570,15 @@ def main():
                                             #If speed=-1, then the starting lights must be removed
                                             if vehicles[expectedSensorPass[i]]["speed"]==-1:
                                                 removeVehicleStartingLEDs(i-1)
+                                                #vehicles[expectedSensorPass[i]]["currentPos"]=20
+                                                #print(vehicles[expectedSensorPass[i]]["currentPos"])
                                             
-                                            if i-1<0:
+                                            if i-1<0:#if this condition is met, then the sensorTime of the previous pi will be required to complete the speed update
                                                 vehicles[expectedSensorPass[i]]["speed"]=calcSpeed(sensorsDistance[i],sensorTime[i]-sensorTime[i-1])
                                             else:
                                                 #for now treat it as though there is no previous pi, this line will be removed
-                                                vehicles[expectedSensorPass[i]]["speed"]=calcSpeed(sensorsDistance[i],sensorTime[i]-0)
+                                                vehicles[expectedSensorPass[i]]["speed"]=calcSpeed(sensorsDistance[i],sensorTime[i]-lastPiSensorTime)
 
-                                                #retrieve last sensors speed if it isnt -1
-                                                #if(receiveFromTrailingPi[0]!=-1)
-                                                #        vehicles[expectedSensorPass[i]]["speed"]=calcSpeed(sensorsDistance[i],sensorTime[i]-receiveFromTrailingPi[0])
-                                                #Retrieve last sensorTime from the previous pi
                                                 
                                             #Update vision range because speed changed
                                             vehicles[expectedSensorPass[i]]["visionRange"]= calcVisionRange(vehicles[expectedSensorPass[i]]["speed"])
@@ -315,12 +588,18 @@ def main():
                                     sensorState[i]=1
                             elif state==0 and sensorState[i]==1:
                                     sensorState[i]=0
-
+                    
+                    #pass data
+                    PassToLeadingPi.send()
+                    PassToTrailingPi.send()
+                    
                     #turn on lights
                     stepThrough()
                     updateStateFromNew()
                     turnOnLEDs()
-
+                    
+                    
+                    
 
 
                         
