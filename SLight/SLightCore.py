@@ -6,7 +6,8 @@ import os
 import pickle
 import time
 import threading
-import RPi.GPIO as GPIO
+#import RPi.GPIO as GPIO
+from EmulatorGUI import GPIO
 GPIO.setmode(GPIO.BCM)
 
 vehicles = []
@@ -172,19 +173,20 @@ def stepThrough():
                                         for x in range(i,len(vehicles)):
                                                 vehicles[x]=vehicles[x+1]
                                 
-                                if(leadingPos<LEDsNum):#trailing LED to leading LED must be changed to high
-                                        tempTrailing=[]#init to an array then proceed to append
-                                        tempLeading=[]#init to an array then proceed to append
-                                        for i in range(trailingPos,leadingPos+1):
-                                                if i<0: #PassToTrailingPi-light
-                                                    tempTrailing.append(i)
-                                                elif i>LEDsNum:#PassToLeadingPi-light
-                                                    tempLeading.append(i)
-                                                else:
-                                                    updateLEDsStateNew(i,1)
-                                                
-                                        PassToTrailingPi.light(tempTrailing)
-                                        PassToLeadingPi.light(tempLeading)
+                                #trailing LED to leading LED must be changed to high
+                                tempTrailing=[]#init to an array then proceed to append
+                                tempLeading=[]#init to an array then proceed to append
+                                for i in range(trailingPos,leadingPos+1):
+                                        if i<0: #PassToTrailingPi-light
+                                            tempTrailing.append(LEDsNum-i)
+                                        elif i>=LEDsNum:#PassToLeadingPi-light
+                                            tempLeading.append(i-LEDsNum)
+                                        else:
+                                            updateLEDsStateNew(i,1)
+                                        
+                                PassToTrailingPi.light(tempTrailing)
+                                PassToLeadingPi.light(tempLeading)
+
                                 trailingPos=trailingPos-1#two less characters
                                 
                                 #one LED before trailing LED can be changed to low if possible,to simulate the removal of LEDs as the vehicle passes
@@ -197,7 +199,9 @@ def stepThrough():
                                         PassToTrailingPi.fade(tempTrailing)
                                                 
                     else:
-                            PassToLeadingPi.newVehicle(vehicles.pop(i))
+                            tempVehicle=vehicles.pop(i)
+                            tempVehicle["currentPos"]=0 #New vehicle entering the beginning of the track will be at currentPos=0
+                            PassToLeadingPi.newVehicle(tempVehicle)
                             #Pass vehicle to next pi
 
 def addVehicleStartingLEDs(sensorPassed):
@@ -517,7 +521,6 @@ def main():
                     #receive from trailing pi
                     if ReceiveFromTrailingPi.isChanged()==1:
                         ReceiveFromTrailingPi.printThis()
-                        print("*")
                     
                         #receive all pi data
                         updateExpectedSensorFromPi()#receive expectedSensorTime
@@ -534,7 +537,7 @@ def main():
                         #receive newVehicle
                         if ReceiveFromTrailingPi.getData()["newVehicle"]!=None:
                             vehicles.append(ReceiveFromTrailingPi.getData()["newVehicle"])
-                            addVehicleStartingLEDs(0)#will always be pos 0 since it now exited the previous pis track
+                            #addVehicleStartingLEDs(0)#will always be pos 0 since it now exited the previous pis track
                             updateExpectedSensorPass(1, len(vehicles)-1)
                         #receive lastSensorTime
                         if ReceiveFromTrailingPi.getData()["lastSensorTime"]!=None:
@@ -560,6 +563,7 @@ def main():
                                     #create new vehicle if a sensor is passed and previous sensor has no vehicles to traverse
                                     if isNewVehicle(i):
                                             #addVehicle
+                                            
                                             vehicles.append(vehicle(i*LEDsMult,sensorTime[i],-1,-1))
                                             addVehicleStartingLEDs(i)
                                             
