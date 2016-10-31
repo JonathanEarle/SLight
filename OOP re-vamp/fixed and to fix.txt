@@ -1,0 +1,14 @@
+some diagram (general or UML) is needed to help understand what is being proposed as the solution
+Please note that just like in Java it is advisable to follow the conventions of using Capital letters for the name of classes. This helps them to immediately stand out from the functions.
+Also why are the variables in lines 436 to 439 capitalized and why are they created outside of the main function?
+You should depend on parameters more than on global variables. Please remember that in general global variables are bad. I know your email highlights the plan to change global variables eventually, but you need to also change the way you think about solving the problem. http://stackoverflow.com/questions/19158339/why-are-global-variables-evil
+Please note that given that the same "i" is used for the sensor and the vehicle, you will only be able to support as many vehicles as you have sensors.
+Also, I have some serious doubts about how scalable in terms of supporting a growing number of vehicles. There are many things that seems to be tied to the "newVehicle" which is a single field.
+
+to fix:
+    variables that are modified should be returned (if several are modified look into pointers)
+
+fixed:
+    removed globalvariables
+    fixed class first letter capitalization
+    
